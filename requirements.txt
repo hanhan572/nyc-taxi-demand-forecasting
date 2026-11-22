@@ -1,0 +1,15 @@
+
+polars
+pyarrow
+pandas
+numpy
+requests
+sqlalchemy
+psycopg2-binary
+scikit-learn
+xgboost
+streamlit
+plotly
+openai
+python-dotenv
+pytest
