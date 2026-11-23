@@ -1,0 +1,5 @@
+# Minimal runtime dependencies for the Streamlit dashboard Docker image.
+# The full project environment is still requirements.txt.
+streamlit>=1.40
+pandas>=2.0
+numpy>=1.26
