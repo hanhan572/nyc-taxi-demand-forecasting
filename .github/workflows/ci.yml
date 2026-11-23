@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Syntax, import check, and pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Make sure nothing silently depends on live services/secrets.
+      OPENAI_API_KEY: ""
+      DATABASE_URL: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax check (fails on any syntax error under src/ and tests/)
+        run: python -m compileall -q src tests
+
+      - name: Import check for dashboard modules
+        run: python -c "import src.dashboard.data_loader as d; df = d.load_hourly_demand('sample'); print(df.shape)"
+
+      - name: Run tests
+        run: python -m pytest -v
+
+  docker:
+    name: Docker build and smoke test
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t nyc-taxi-dashboard:ci .
+
+      - name: Run container and check health endpoint
+        run: |
+          docker run -d --name dashboard -p 8501:8501 nyc-taxi-dashboard:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8501/_stcore/health; then
+              echo " -> dashboard is healthy"; exit 0
+            fi
+            sleep 2
+          done
+          echo "Dashboard did not become healthy"; docker logs dashboard; exit 1
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f dashboard || true
